@@ -7,10 +7,14 @@ import { ThemeProvider } from "@/components/theme-provider"
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "Carlos Anz Muñoz - Desarrollador Full Stack",
+  title: "Carlos Sanz Portfolio",
   description:
-    "Portfolio profesional de Carlos Anz Muñoz, desarrollador Full Stack especializado en PHP, Java, JavaScript, TypeScript y tecnologías modernas.",
-    generator: 'v0.dev'
+    "Portfolio profesional de Carlos Sanz Muñoz, desarrollador Full Stack especializado en PHP, Java, JavaScript, TypeScript y tecnologías modernas. Diseño cyberpunk futurista.",
+  generator: 'v0.dev',
+  keywords: ['Carlos Sanz', 'Full Stack Developer', 'PHP', 'Java', 'JavaScript', 'TypeScript', 'Portfolio', 'Cyberpunk'],
+  authors: [{ name: 'Carlos Sanz Muñoz' }],
+  viewport: 'width=device-width, initial-scale=1',
+  themeColor: '#00ffff',
 }
 
 export default function RootLayout({
@@ -21,7 +25,12 @@ export default function RootLayout({
   return (
     <html lang="es" suppressHydrationWarning>
       <body className={inter.className}>
-        <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
+        <ThemeProvider 
+          attribute="class" 
+          defaultTheme="dark" 
+          enableSystem={false} 
+          disableTransitionOnChange
+        >
           {children}
         </ThemeProvider>
       </body>
