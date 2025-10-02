@@ -1,8 +1,10 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useEffect } from "react"
+import { motion } from "framer-motion"
+import emailjs from "@emailjs/browser"
+import { translations as t } from "@/lib/translations"
 import {
   Github,
   Linkedin,
@@ -13,7 +15,6 @@ import {
   GraduationCap,
   Award,
   Globe,
-  Car,
   Star,
   GitFork,
   Loader2,
@@ -26,6 +27,8 @@ import { Textarea } from "@/components/ui/textarea"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { ThemeToggle } from "@/components/theme-toggle"
+import { GitHubStats } from "@/components/portfolio/github-stats"
+import { useToast } from "@/hooks/use-toast"
 
 interface GitHubRepo {
   id: number
@@ -39,7 +42,23 @@ interface GitHubRepo {
   topics: string[]
 }
 
-export default function Portfolio() {
+// Animation variants
+const fadeInUp = {
+  initial: { opacity: 0, y: 20 },
+  animate: { opacity: 1, y: 0 },
+  transition: { duration: 0.5 },
+}
+
+const staggerContainer = {
+  animate: {
+    transition: {
+      staggerChildren: 0.1,
+    },
+  },
+}
+
+function Portfolio() {
+  const { toast } = useToast()
   const [formData, setFormData] = useState({
     name: "",
     email: "",
@@ -47,6 +66,7 @@ export default function Portfolio() {
   })
   const [repos, setRepos] = useState<GitHubRepo[]>([])
   const [loading, setLoading] = useState(true)
+  const [sending, setSending] = useState(false)
 
   useEffect(() => {
     const fetchRepos = async () => {
@@ -66,11 +86,71 @@ export default function Portfolio() {
     fetchRepos()
   }, [])
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    console.log("Form submitted:", formData)
-    alert("¡Mensaje enviado! Te contactaré pronto.")
-    setFormData({ name: "", email: "", message: "" })
+    setSending(true)
+
+    try {
+      // EmailJS configuration from environment variables
+      const serviceId = process.env.NEXT_PUBLIC_EMAILJS_SERVICE_ID
+      const templateId = process.env.NEXT_PUBLIC_EMAILJS_TEMPLATE_ID
+      const publicKey = process.env.NEXT_PUBLIC_EMAILJS_PUBLIC_KEY
+
+      // Validate configuration
+      if (!serviceId || !templateId || !publicKey) {
+        throw new Error("EmailJS no está configurado correctamente. Por favor, configura las variables de entorno.")
+      }
+
+      // Validate form data
+      if (!formData.name.trim() || !formData.email.trim() || !formData.message.trim()) {
+        throw new Error("Por favor, completa todos los campos del formulario.")
+      }
+
+      // Validate email format
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
+      if (!emailRegex.test(formData.email)) {
+        throw new Error("Por favor, introduce una dirección de email válida.")
+      }
+
+      // Initialize EmailJS
+      emailjs.init(publicKey)
+
+      await emailjs.send(
+        serviceId,
+        templateId,
+        {
+          from_name: formData.name.trim(),
+          from_email: formData.email.trim(),
+          message: formData.message.trim(),
+        },
+      )
+
+      toast({
+        title: t.contact.form.success,
+        variant: "default",
+      })
+      setFormData({ name: "", email: "", message: "" })
+    } catch (error: unknown) {
+      const errorMessage = error instanceof Error ? error.message : "Error desconocido"
+      console.error("Error sending email:", errorMessage)
+
+      // Provide more specific error messages
+      let userMessage = t.contact.form.error
+      if (errorMessage.includes("EmailJS no está configurado")) {
+        userMessage = "El servicio de email no está configurado. Por favor, contacta al administrador."
+      } else if (errorMessage.includes("completa todos los campos")) {
+        userMessage = errorMessage
+      } else if (errorMessage.includes("email válida")) {
+        userMessage = errorMessage
+      }
+
+      toast({
+        title: userMessage,
+        variant: "destructive",
+      })
+    } finally {
+      setSending(false)
+    }
   }
 
   const formatDate = (dateString: string) => {
@@ -79,11 +159,12 @@ export default function Portfolio() {
     const diffTime = Math.abs(now.getTime() - date.getTime())
     const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-    if (diffDays === 1) return "1 día"
-    if (diffDays < 7) return `${diffDays} días`
-    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} semanas`
-    if (diffDays < 365) return `${Math.ceil(diffDays / 30)} meses`
-    return `${Math.ceil(diffDays / 365)} años`
+    if (diffDays === 1) return `1 ${t.time.day}`
+    if (diffDays < 7) return `${diffDays} ${t.time.days}`
+    if (diffDays < 30) return `${Math.ceil(diffDays / 7)} ${diffDays < 14 ? t.time.week : t.time.weeks}`
+    if (diffDays < 365)
+      return `${Math.ceil(diffDays / 30)} ${Math.ceil(diffDays / 30) === 1 ? t.time.month : t.time.months}`
+    return `${Math.ceil(diffDays / 365)} ${Math.ceil(diffDays / 365) === 1 ? t.time.year : t.time.years}`
   }
 
   const getLanguageColor = (language: string | null) => {
@@ -105,7 +186,7 @@ export default function Portfolio() {
   }
 
   const technologies = {
-    "Lenguajes de Programación": [
+    [t.technologies.categories.languages]: [
       {
         name: "JavaScript",
         icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/javascript/javascript-original.svg",
@@ -127,7 +208,7 @@ export default function Portfolio() {
         color: "text-orange-400",
       },
     ],
-    "Frameworks & Librerías": [
+    [t.technologies.categories.frameworks]: [
       {
         name: "Angular",
         icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/angularjs/angularjs-original.svg",
@@ -149,7 +230,7 @@ export default function Portfolio() {
         color: "text-orange-500",
       },
     ],
-    "Bases de Datos": [
+    [t.technologies.categories.databases]: [
       {
         name: "MySQL",
         icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/mysql/mysql-original.svg",
@@ -171,7 +252,7 @@ export default function Portfolio() {
         color: "text-yellow-500",
       },
     ],
-    "Cloud & Servicios": [
+    [t.technologies.categories.cloud]: [
       {
         name: "AWS",
         icon: "https://cdn.jsdelivr.net/gh/devicons/devicon/icons/amazonwebservices/amazonwebservices-plain-wordmark.svg",
@@ -190,61 +271,17 @@ export default function Portfolio() {
     ],
   }
 
-  const education = [
-    {
-      title: "Grado Superior Desarrollo de Aplicaciones Web",
-      period: "Sept. 2023 - May. 2024",
-      description: "Especialización en desarrollo web full-stack, tecnologías modernas y frameworks actuales.",
-    },
-    {
-      title: "Grado Superior Desarrollo Aplicaciones Multiplataforma",
-      period: "Sept. 2021 - May. 2023",
-      description:
-        "Desarrollo de aplicaciones para múltiples plataformas, programación orientada a objetos y bases de datos.",
-    },
-    {
-      title: "Grado Medio Sistemas Microinformáticos y Redes",
-      period: "Sept. 2019 - May. 2021",
-      description: "Fundamentos de sistemas informáticos, redes, hardware y administración de sistemas.",
-    },
-  ]
-
-  const experience = [
-    {
-      company: "ADDINGTECHNOLOGY",
-      position: "Full-Stack Developer",
-      period: "Dic. 2024 - Actualmente",
-      description:
-        "Desarrollo full-stack con Angular, desarrollo back-end SpringBoot, nuevas funcionalidades, utilización de BBDD Oracle, SQL y PLSQL",
-      current: true,
-    },
-    {
-      company: "ICSOLUTIONS",
-      position: "Prácticas",
-      period: "Marz. 2024 - Jun. 2024",
-      description:
-        "Prácticas del GS Desarrollo de aplicaciones web. Programación front-end con twig, desarrollo de nuevas funcionalidades, desarrollo de ERPs",
-    },
-    {
-      company: "APTA SOLUTIONS (GRUPO TRICISE)",
-      position: "Front-End Developer",
-      period: "Marz. 2023 - Ago. 2023",
-      description:
-        "Resolución de problemas, consultas a bases de datos Oracle, uso de metodologías ágiles como SCRUM, utilización de Clarify PPM y Rally, programación front-end y gel-scripting",
-    },
-  ]
-
   const skills = [
-    { name: "Capacidad comunicativa", icon: "💬" },
-    { name: "Resolución de problemas", icon: "🧩" },
-    { name: "Trabajo en equipo", icon: "👥" },
-    { name: "Control de versiones Git", icon: "🔀" },
+    { name: t.about.keySkills.communication, icon: "💬" },
+    { name: t.about.keySkills.problemSolving, icon: "🧩" },
+    { name: t.about.keySkills.teamwork, icon: "👥" },
+    { name: t.about.keySkills.versionControl, icon: "🔀" },
   ]
 
   const languages = [
-    { name: "Español", level: "Nativo", flag: "🇪🇸" },
-    { name: "Inglés", level: "C1 Advanced Cambridge", flag: "🇬🇧" },
-    { name: "Valenciano", level: "Nivel B1", flag: "🏴" },
+    { name: t.about.languages.spanish, level: t.about.languages.spLevel, flag: "🇪🇸" },
+    { name: t.about.languages.english, level: t.about.languages.enLevel, flag: "🇬🇧" },
+    { name: t.about.languages.valencian, level: t.about.languages.vaLevel, flag: "🏴" },
   ]
 
   return (
@@ -253,405 +290,502 @@ export default function Portfolio() {
       <header className="sticky top-0 z-50 w-full border-b glass-effect">
         <div className="container flex h-16 items-center justify-between">
           <div className="flex items-center space-x-4">
-            <h1 className="text-xl font-bold">Carlos Sanz</h1>
+            <h1 className="text-xl font-bold">{t.hero.name}</h1>
           </div>
-          <nav className="hidden md:flex items-center space-x-6">
+          <nav className="hidden md:flex items-center space-x-6" role="navigation" aria-label="Main navigation">
             <a href="#about" className="text-sm font-medium hover:text-primary transition-colors">
-              Sobre mí
+              {t.nav.about}
             </a>
             <a href="#education" className="text-sm font-medium hover:text-primary transition-colors">
-              Formación
+              {t.nav.education}
             </a>
             <a href="#experience" className="text-sm font-medium hover:text-primary transition-colors">
-              Experiencia
+              {t.nav.experience}
             </a>
             <a href="#technologies" className="text-sm font-medium hover:text-primary transition-colors">
-              Tecnologías
+              {t.nav.technologies}
             </a>
             <a href="#projects" className="text-sm font-medium hover:text-primary transition-colors">
-              Proyectos
+              {t.nav.projects}
             </a>
             <a href="#contact" className="text-sm font-medium hover:text-primary transition-colors">
-              Contacto
+              {t.nav.contact}
             </a>
           </nav>
-          <ThemeToggle />
+          <div className="flex items-center gap-2">
+            <ThemeToggle />
+          </div>
         </div>
       </header>
 
       {/* Hero Section */}
-      <section className="py-20 px-4">
+      <motion.section className="py-20 px-4" initial="initial" animate="animate" variants={fadeInUp}>
         <div className="container max-w-4xl mx-auto text-center">
           <div className="mb-8">
-            <div className="w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center floating">
+            <motion.div
+              className="w-32 h-32 mx-auto mb-6 rounded-full overflow-hidden bg-gradient-to-r from-blue-500 to-purple-600 flex items-center justify-center floating"
+              whileHover={{ scale: 1.05 }}
+              transition={{ type: "spring", stiffness: 300 }}
+            >
               <img
                 src="/carlos.jpg"
-                alt="Foto de Carlos Sanz Muñoz"
+                alt={t.hero.name}
                 className="w-full h-full object-cover object-top"
+                loading="eager"
               />
-            </div>
-            <h1 className="text-4xl md:text-6xl font-bold mb-4">Carlos Sanz Muñoz</h1>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-8">Desarrollador Full Stack</p>
-            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-              Especializado en desarrollo web con experiencia en tecnologías modernas y metodologías ágiles. Apasionado
-              por crear soluciones eficientes y escalables.
-            </p>
+            </motion.div>
+            <h1 className="text-4xl md:text-6xl font-bold mb-4">{t.hero.name}</h1>
+            <p className="text-xl md:text-2xl text-muted-foreground mb-8">{t.hero.role}</p>
+            <p className="text-lg text-muted-foreground max-w-2xl mx-auto">{t.hero.description}</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Button size="lg" asChild className="hover-card">
-              <a href="#contact">Contactar</a>
+              <a href="#contact">{t.hero.contactButton}</a>
             </Button>
             <Button size="lg" variant="outline" asChild className="hover-card">
               <a href="https://github.com/CarloSzMz" target="_blank" rel="noopener noreferrer">
                 <Github className="mr-2 h-4 w-4" />
-                Ver GitHub
+                {t.hero.viewGithub}
               </a>
             </Button>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* About Section */}
-      <section id="about" className="py-20 px-4 bg-muted/50">
+      <motion.section
+        id="about"
+        className="py-20 px-4 bg-muted/50"
+        initial="initial"
+        whileInView="animate"
+        viewport={{ once: true }}
+        variants={staggerContainer}
+      >
         <div className="container max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Sobre mí</h2>
+          <motion.h2 className="text-3xl font-bold text-center mb-12" variants={fadeInUp}>
+            {t.about.title}
+          </motion.h2>
           <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="hover-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5" />
-                  Experiencia Profesional
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="text-muted-foreground">
-                  Desarrollador Full Stack con experiencia en el desarrollo de aplicaciones web y sistemas
-                  empresariales. Especializado en tecnologías como PHP, Java, JavaScript y TypeScript.
-                </p>
-              </CardContent>
-            </Card>
-
-            <Card className="hover-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Award className="h-5 w-5" />
-                  Habilidades Clave
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-2">
-                  {skills.map((skill) => (
-                    <div key={skill.name} className="flex items-center gap-2">
-                      <span className="text-lg">{skill.icon}</span>
-                      <span className="text-sm">{skill.name}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-
-            <Card className="hover-card">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Globe className="h-5 w-5" />
-                  Idiomas
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  {languages.map((lang) => (
-                    <div key={lang.name} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <span className="text-lg">{lang.flag}</span>
-                        <span className="font-medium">{lang.name}</span>
-                      </div>
-                      <Badge variant="secondary" className="text-xs">
-                        {lang.level}
-                      </Badge>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-        </div>
-      </section>
-
-      {/* Education Section */}
-      <section id="education" className="py-20 px-4">
-        <div className="container max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Formación Académica</h2>
-          <div className="space-y-6">
-            {education.map((edu, index) => (
-              <Card key={index} className="hover-card">
+            <motion.div variants={fadeInUp}>
+              <Card className="hover-card h-full">
                 <CardHeader>
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 rounded-full bg-primary/10">
-                      <GraduationCap className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <CardTitle className="text-lg mb-1">{edu.title}</CardTitle>
-                      <div className="flex items-center gap-2 text-muted-foreground mb-2">
-                        <Calendar className="h-4 w-4" />
-                        <span className="text-sm">{edu.period}</span>
-                      </div>
-                      <CardDescription>{edu.description}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Experience Section */}
-      <section id="experience" className="py-20 px-4 bg-muted/50">
-        <div className="container max-w-4xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Experiencia Profesional</h2>
-          <div className="space-y-6">
-            {experience.map((exp, index) => (
-              <Card key={index} className="hover-card">
-                <CardHeader>
-                  <div className="flex items-start gap-4">
-                    <div className="p-2 rounded-full bg-primary/10">
-                      <Briefcase className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        <CardTitle className="text-lg">{exp.position}</CardTitle>
-                        {exp.current && <Badge className="bg-green-500 hover:bg-green-600">Actual</Badge>}
-                      </div>
-                      <p className="font-semibold text-primary mb-2">{exp.company}</p>
-                      <div className="flex items-center gap-2 text-muted-foreground mb-3">
-                        <Calendar className="h-4 w-4" />
-                        <span className="text-sm">{exp.period}</span>
-                      </div>
-                      <CardDescription>{exp.description}</CardDescription>
-                    </div>
-                  </div>
-                </CardHeader>
-              </Card>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      {/* Technologies Section */}
-      <section id="technologies" className="py-20 px-4">
-        <div className="container max-w-6xl mx-auto">
-          <h2 className="text-3xl font-bold text-center mb-12">Tecnologías y Herramientas</h2>
-          <div className="grid gap-8">
-            {Object.entries(technologies).map(([category, techs]) => (
-              <Card key={category} className="hover-card overflow-hidden">
-                <CardHeader>
-                  <CardTitle className="text-xl">{category}</CardTitle>
+                  <CardTitle className="flex items-center gap-2">
+                    <Briefcase className="h-5 w-5" aria-hidden="true" />
+                    {t.about.professionalExperience.title}
+                  </CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-                    {techs.map((tech) => (
-                      <div
-                        key={tech.name}
-                        className={`tech-icon flex flex-col items-center p-6 rounded-xl glass-effect cursor-pointer group ${tech.color}`}
-                      >
-                        <div className="w-16 h-16 mb-4 flex items-center justify-center">
-                          <img
-                            src={tech.icon || "/placeholder.svg"}
-                            alt={tech.name}
-                            className="w-12 h-12 object-contain"
-                            crossOrigin="anonymous"
-                          />
-                        </div>
-                        <span className="text-sm font-medium text-center group-hover:text-white transition-colors">
-                          {tech.name}
+                  <p className="text-muted-foreground">{t.about.professionalExperience.description}</p>
+                </CardContent>
+              </Card>
+            </motion.div>
+
+            <motion.div variants={fadeInUp}>
+              <Card className="hover-card h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Award className="h-5 w-5" aria-hidden="true" />
+                    {t.about.keySkills.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-2">
+                    {skills.map((skill) => (
+                      <div key={skill.name} className="flex items-center gap-2">
+                        <span className="text-lg" aria-hidden="true">
+                          {skill.icon}
                         </span>
+                        <span className="text-sm">{skill.name}</span>
                       </div>
                     ))}
                   </div>
                 </CardContent>
               </Card>
+            </motion.div>
+
+            <motion.div variants={fadeInUp}>
+              <Card className="hover-card h-full">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <Globe className="h-5 w-5" aria-hidden="true" />
+                    {t.about.languages.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="space-y-3">
+                    {languages.map((lang) => (
+                      <div key={lang.name} className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <span className="text-lg" aria-hidden="true">
+                            {lang.flag}
+                          </span>
+                          <span className="font-medium">{lang.name}</span>
+                        </div>
+                        <Badge variant="secondary" className="text-xs">
+                          {lang.level}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Education Section */}
+      <motion.section
+        id="education"
+        className="py-20 px-4"
+        initial="initial"
+        whileInView="animate"
+        viewport={{ once: true }}
+        variants={staggerContainer}
+      >
+        <div className="container max-w-4xl mx-auto">
+          <motion.h2 className="text-3xl font-bold text-center mb-12" variants={fadeInUp}>
+            {t.education.title}
+          </motion.h2>
+          <div className="space-y-6">
+            {t.education.items.map((edu: any, index: number) => (
+              <motion.div key={index} variants={fadeInUp}>
+                <Card className="hover-card">
+                  <CardHeader>
+                    <div className="flex items-start gap-4">
+                      <div className="p-2 rounded-full bg-primary/10">
+                        <GraduationCap className="h-6 w-6 text-primary" aria-hidden="true" />
+                      </div>
+                      <div className="flex-1">
+                        <CardTitle className="text-lg mb-1">{edu.title}</CardTitle>
+                        <div className="flex items-center gap-2 text-muted-foreground mb-2">
+                          <Calendar className="h-4 w-4" aria-hidden="true" />
+                          <span className="text-sm">{edu.period}</span>
+                        </div>
+                        <CardDescription>{edu.description}</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </motion.section>
+
+      {/* Experience Section */}
+      <motion.section
+        id="experience"
+        className="py-20 px-4 bg-muted/50"
+        initial="initial"
+        whileInView="animate"
+        viewport={{ once: true }}
+        variants={staggerContainer}
+      >
+        <div className="container max-w-4xl mx-auto">
+          <motion.h2 className="text-3xl font-bold text-center mb-12" variants={fadeInUp}>
+            {t.experience.title}
+          </motion.h2>
+          <div className="space-y-6">
+            {t.experience.items.map((exp: any, index: number) => (
+              <motion.div key={index} variants={fadeInUp}>
+                <Card className="hover-card">
+                  <CardHeader>
+                    <div className="flex items-start gap-4">
+                      <div className="p-2 rounded-full bg-primary/10">
+                        <Briefcase className="h-6 w-6 text-primary" aria-hidden="true" />
+                      </div>
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CardTitle className="text-lg">{exp.position}</CardTitle>
+                          {index === 0 && <Badge className="bg-green-500 hover:bg-green-600">{t.experience.current}</Badge>}
+                        </div>
+                        <p className="font-semibold text-primary mb-2">{exp.company}</p>
+                        <div className="flex items-center gap-2 text-muted-foreground mb-3">
+                          <Calendar className="h-4 w-4" aria-hidden="true" />
+                          <span className="text-sm">{exp.period}</span>
+                        </div>
+                        <CardDescription>{exp.description}</CardDescription>
+                      </div>
+                    </div>
+                  </CardHeader>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </motion.section>
+
+      {/* Technologies Section */}
+      <motion.section
+        id="technologies"
+        className="py-20 px-4"
+        initial="initial"
+        whileInView="animate"
+        viewport={{ once: true }}
+        variants={staggerContainer}
+      >
+        <div className="container max-w-6xl mx-auto">
+          <motion.h2 className="text-3xl font-bold text-center mb-12" variants={fadeInUp}>
+            {t.technologies.title}
+          </motion.h2>
+          <div className="grid gap-8">
+            {Object.entries(technologies).map(([category, techs]) => (
+              <motion.div key={category} variants={fadeInUp}>
+                <Card className="hover-card overflow-hidden">
+                  <CardHeader>
+                    <CardTitle className="text-xl">{category}</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+                      {techs.map((tech) => (
+                        <motion.div
+                          key={tech.name}
+                          className={`tech-icon flex flex-col items-center p-6 rounded-xl glass-effect cursor-pointer group ${tech.color}`}
+                          whileHover={{ scale: 1.05, y: -5 }}
+                          transition={{ type: "spring", stiffness: 300 }}
+                        >
+                          <div className="w-16 h-16 mb-4 flex items-center justify-center">
+                            <img
+                              src={tech.icon || "/placeholder.svg"}
+                              alt={tech.name}
+                              className="w-12 h-12 object-contain"
+                              crossOrigin="anonymous"
+                              loading="lazy"
+                            />
+                          </div>
+                          <span className="text-sm font-medium text-center group-hover:text-white transition-colors">
+                            {tech.name}
+                          </span>
+                        </motion.div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            ))}
+          </div>
+        </div>
+      </motion.section>
 
       {/* Projects Section */}
-      <section id="projects" className="py-20 px-4 bg-muted/50">
+      <motion.section
+        id="projects"
+        className="py-20 px-4 bg-muted/50"
+        initial="initial"
+        whileInView="animate"
+        viewport={{ once: true }}
+        variants={staggerContainer}
+      >
         <div className="container max-w-6xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Proyectos Destacados</h2>
-            <p className="text-muted-foreground">Mis proyectos más recientes disponibles en GitHub</p>
+            <motion.h2 className="text-3xl font-bold mb-4" variants={fadeInUp}>
+              {t.projects.title}
+            </motion.h2>
+            <motion.p className="text-muted-foreground" variants={fadeInUp}>
+              {t.projects.subtitle}
+            </motion.p>
           </div>
+
+          <GitHubStats username="CarloSzMz" />
 
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">Cargando proyectos...</span>
+              <span className="ml-2 text-muted-foreground">{t.projects.loading}</span>
             </div>
           ) : (
             <>
-              <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
+              <motion.div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" variants={staggerContainer}>
                 {repos.map((repo) => (
-                  <Card key={repo.id} className="hover-card">
-                    <CardHeader>
-                      <div className="flex items-start justify-between">
-                        <CardTitle className="text-lg">{repo.name}</CardTitle>
-                        <a
-                          href={repo.html_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-muted-foreground hover:text-primary transition-colors"
-                        >
-                          <ExternalLink className="h-4 w-4" />
-                        </a>
-                      </div>
-                      <CardDescription className="min-h-[3rem]">
-                        {repo.description || "Sin descripción disponible"}
-                      </CardDescription>
-                    </CardHeader>
-                    <CardContent>
-                      <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
-                        <div className="flex items-center gap-4">
-                          {repo.language && (
-                            <span className="flex items-center gap-1">
-                              <div
-                                className="w-3 h-3 rounded-full"
-                                style={{ backgroundColor: getLanguageColor(repo.language) }}
-                              ></div>
-                              {repo.language}
+                  <motion.div key={repo.id} variants={fadeInUp}>
+                    <Card className="hover-card h-full flex flex-col">
+                      <CardHeader>
+                        <div className="flex items-start justify-between">
+                          <CardTitle className="text-lg">{repo.name}</CardTitle>
+                          <a
+                            href={repo.html_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-muted-foreground hover:text-primary transition-colors"
+                            aria-label={`View ${repo.name} on GitHub`}
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                          </a>
+                        </div>
+                        <CardDescription className="min-h-[3rem]">
+                          {repo.description || t.projects.noDescription}
+                        </CardDescription>
+                      </CardHeader>
+                      <CardContent className="flex-1 flex flex-col justify-end">
+                        <div className="flex items-center justify-between text-sm text-muted-foreground mb-3">
+                          <div className="flex items-center gap-4">
+                            {repo.language && (
+                              <span className="flex items-center gap-1">
+                                <div
+                                  className="w-3 h-3 rounded-full"
+                                  style={{ backgroundColor: getLanguageColor(repo.language) }}
+                                  aria-hidden="true"
+                                ></div>
+                                {repo.language}
+                              </span>
+                            )}
+                            <span className="flex items-center gap-1" aria-label={`${repo.stargazers_count} stars`}>
+                              <Star className="h-3 w-3" aria-hidden="true" />
+                              {repo.stargazers_count}
                             </span>
-                          )}
-                          <span className="flex items-center gap-1">
-                            <Star className="h-3 w-3" />
-                            {repo.stargazers_count}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <GitFork className="h-3 w-3" />
-                            {repo.forks_count}
-                          </span>
+                            <span className="flex items-center gap-1" aria-label={`${repo.forks_count} forks`}>
+                              <GitFork className="h-3 w-3" aria-hidden="true" />
+                              {repo.forks_count}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                      {repo.topics.length > 0 && (
-                        <div className="flex flex-wrap gap-1 mb-3">
-                          {repo.topics.slice(0, 3).map((topic) => (
-                            <Badge key={topic} variant="secondary" className="text-xs">
-                              {topic}
-                            </Badge>
-                          ))}
+                        {repo.topics.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mb-3">
+                            {repo.topics.slice(0, 3).map((topic) => (
+                              <Badge key={topic} variant="secondary" className="text-xs">
+                                {topic}
+                              </Badge>
+                            ))}
+                          </div>
+                        )}
+                        <div className="text-xs text-muted-foreground">
+                          {t.projects.updatedAgo} {formatDate(repo.updated_at)}
                         </div>
-                      )}
-                      <div className="text-xs text-muted-foreground">
-                        Actualizado hace {formatDate(repo.updated_at)}
-                      </div>
-                    </CardContent>
-                  </Card>
+                      </CardContent>
+                    </Card>
+                  </motion.div>
                 ))}
-              </div>
-              <div className="text-center mt-8">
+              </motion.div>
+              <motion.div className="text-center mt-8" variants={fadeInUp}>
                 <Button variant="outline" asChild className="hover-card">
                   <a href="https://github.com/CarloSzMz" target="_blank" rel="noopener noreferrer">
                     <Github className="mr-2 h-4 w-4" />
-                    Ver todos los proyectos
+                    {t.projects.viewAll}
                   </a>
                 </Button>
-              </div>
+              </motion.div>
             </>
           )}
         </div>
-      </section>
+      </motion.section>
 
       {/* Contact Section */}
-      <section id="contact" className="py-20 px-4">
+      <motion.section
+        id="contact"
+        className="py-20 px-4"
+        initial="initial"
+        whileInView="animate"
+        viewport={{ once: true }}
+        variants={staggerContainer}
+      >
         <div className="container max-w-4xl mx-auto">
           <div className="text-center mb-12">
-            <h2 className="text-3xl font-bold mb-4">Contacto</h2>
-            <p className="text-muted-foreground">¿Tienes un proyecto en mente? ¡Hablemos!</p>
+            <motion.h2 className="text-3xl font-bold mb-4" variants={fadeInUp}>
+              {t.contact.title}
+            </motion.h2>
+            <motion.p className="text-muted-foreground" variants={fadeInUp}>
+              {t.contact.subtitle}
+            </motion.p>
           </div>
           <div className="grid md:grid-cols-2 gap-8">
-            <Card className="hover-card">
-              <CardHeader>
-                <CardTitle>Envíame un mensaje</CardTitle>
-                <CardDescription>Completa el formulario y te responderé lo antes posible</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <form onSubmit={handleSubmit} className="space-y-4">
-                  <div>
-                    <Label htmlFor="name">Nombre</Label>
-                    <Input
-                      id="name"
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="email">Email</Label>
-                    <Input
-                      id="email"
-                      type="email"
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor="message">Mensaje</Label>
-                    <Textarea
-                      id="message"
-                      rows={4}
-                      value={formData.message}
-                      onChange={(e) => setFormData({ ...formData, message: e.target.value })}
-                      required
-                    />
-                  </div>
-                  <Button type="submit" className="w-full hover-card">
-                    <Mail className="mr-2 h-4 w-4" />
-                    Enviar mensaje
+            <motion.div variants={fadeInUp}>
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>{t.contact.form.title}</CardTitle>
+                  <CardDescription>{t.contact.form.description}</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <form onSubmit={handleSubmit} className="space-y-4">
+                    <div>
+                      <Label htmlFor="name">{t.contact.form.name}</Label>
+                      <Input
+                        id="name"
+                        value={formData.name}
+                        onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                        required
+                        aria-required="true"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="email">{t.contact.form.email}</Label>
+                      <Input
+                        id="email"
+                        type="email"
+                        value={formData.email}
+                        onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                        required
+                        aria-required="true"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="message">{t.contact.form.message}</Label>
+                      <Textarea
+                        id="message"
+                        rows={4}
+                        value={formData.message}
+                        onChange={(e) => setFormData({ ...formData, message: e.target.value })}
+                        required
+                        aria-required="true"
+                      />
+                    </div>
+                    <Button type="submit" className="w-full" disabled={sending}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      {sending ? t.contact.form.sending : t.contact.form.send}
+                    </Button>
+                  </form>
+                </CardContent>
+              </Card>
+            </motion.div>
+            <motion.div variants={fadeInUp}>
+              <Card className="h-full">
+                <CardHeader>
+                  <CardTitle>{t.contact.connect.title}</CardTitle>
+                  <CardDescription>{t.contact.connect.description}</CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <a href="https://www.linkedin.com/in/carlosanzmunoz/" target="_blank" rel="noopener noreferrer">
+                      <Linkedin className="mr-2 h-4 w-4" />
+                      LinkedIn
+                    </a>
                   </Button>
-                </form>
-              </CardContent>
-            </Card>
-            <Card className="hover-card">
-              <CardHeader>
-                <CardTitle>Conecta conmigo</CardTitle>
-                <CardDescription>Sígueme en mis redes sociales y plataformas profesionales</CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <Button variant="outline" className="w-full justify-start hover-card" asChild>
-                  <a href="https://www.linkedin.com/in/carlosanzmunoz/" target="_blank" rel="noopener noreferrer">
-                    <Linkedin className="mr-2 h-4 w-4" />
-                    LinkedIn
-                  </a>
-                </Button>
-                <Button variant="outline" className="w-full justify-start hover-card" asChild>
-                  <a href="https://github.com/CarloSzMz" target="_blank" rel="noopener noreferrer">
-                    <Github className="mr-2 h-4 w-4" />
-                    GitHub
-                  </a>
-                </Button>
-                <Separator />
-                <div className="text-sm text-muted-foreground">
-                  <p className="flex items-center gap-2 mb-2">
-                    <Mail className="h-4 w-4" />
-                    Disponible para proyectos freelance
-                  </p>
-                  <p className="flex items-center gap-2 mb-2">
-                    <Calendar className="h-4 w-4" />
-                    Respuesta en 24-48 horas
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+                  <Button variant="outline" className="w-full justify-start" asChild>
+                    <a href="https://github.com/CarloSzMz" target="_blank" rel="noopener noreferrer">
+                      <Github className="mr-2 h-4 w-4" />
+                      GitHub
+                    </a>
+                  </Button>
+                  <Separator />
+                  <div className="text-sm text-muted-foreground">
+                    <p className="flex items-center gap-2 mb-2">
+                      <Mail className="h-4 w-4" aria-hidden="true" />
+                      {t.contact.connect.availability}
+                    </p>
+                    <p className="flex items-center gap-2 mb-2">
+                      <Calendar className="h-4 w-4" aria-hidden="true" />
+                      {t.contact.connect.responseTime}
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           </div>
         </div>
-      </section>
+      </motion.section>
 
       {/* Footer */}
       <footer className="border-t py-8 px-4 glass-effect">
         <div className="container max-w-4xl mx-auto text-center text-muted-foreground">
-          <p>&copy; 2025 Carlos Sanz Muñoz. Todos los derechos reservados.</p>
+          <p>
+            &copy; 2025 {t.hero.name}. {t.footer.rights}
+          </p>
         </div>
       </footer>
     </div>
   )
+}
+
+export default function Page() {
+  return <Portfolio />
 }
