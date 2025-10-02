@@ -69,21 +69,33 @@ function Portfolio() {
   const [sending, setSending] = useState(false)
 
   useEffect(() => {
+    let mounted = true
+
     const fetchRepos = async () => {
       try {
         const response = await fetch("https://api.github.com/users/CarloSzMz/repos?sort=updated&per_page=6")
-        if (response.ok) {
-          const data = await response.json()
+        if (!response.ok) {
+          throw new Error(`GitHub API error: ${response.status}`)
+        }
+        const data = await response.json()
+
+        if (mounted && Array.isArray(data)) {
           setRepos(data)
         }
       } catch (error) {
         console.error("Error fetching repos:", error)
       } finally {
-        setLoading(false)
+        if (mounted) {
+          setLoading(false)
+        }
       }
     }
 
     fetchRepos()
+
+    return () => {
+      mounted = false
+    }
   }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -589,14 +601,15 @@ function Portfolio() {
 
           <GitHubStats username="CarloSzMz" />
 
-          {loading ? (
-            <div className="flex justify-center items-center py-20">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <span className="ml-2 text-muted-foreground">{t.projects.loading}</span>
-            </div>
-          ) : (
-            <>
-              <motion.div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6" variants={staggerContainer}>
+          <div className="mt-12">
+            {loading ? (
+              <div className="flex justify-center items-center py-20">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <span className="ml-2 text-muted-foreground">{t.projects.loading}</span>
+              </div>
+            ) : repos.length > 0 ? (
+              <>
+              <motion.div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6 mt-8" variants={staggerContainer}>
                 {repos.map((repo) => (
                   <motion.div key={repo.id} variants={fadeInUp}>
                     <Card className="hover-card h-full flex flex-col">
@@ -666,7 +679,12 @@ function Portfolio() {
                 </Button>
               </motion.div>
             </>
-          )}
+            ) : (
+              <div className="text-center py-20">
+                <p className="text-muted-foreground">No se pudieron cargar los proyectos en este momento.</p>
+              </div>
+            )}
+          </div>
         </div>
       </motion.section>
 
