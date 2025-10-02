@@ -1,49 +1,11 @@
 "use client"
 
-import { useEffect, useState } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { GitCommit, GitPullRequest, Star, Users } from "lucide-react"
-
-interface GitHubStats {
-  totalStars: number
-  totalForks: number
-  totalRepos: number
-  followers: number
-}
+import { useGitHubStats } from "@/hooks/useGitHubStats"
 
 export function GitHubStats({ username }: { username: string }) {
-  const [stats, setStats] = useState<GitHubStats | null>(null)
-  const [loading, setLoading] = useState(true)
-
-  useEffect(() => {
-    const fetchStats = async () => {
-      try {
-        // Fetch user data
-        const userResponse = await fetch(`https://api.github.com/users/${username}`)
-        const userData = await userResponse.json()
-
-        // Fetch repos
-        const reposResponse = await fetch(`https://api.github.com/users/${username}/repos?per_page=100`)
-        const reposData = await reposResponse.json()
-
-        const totalStars = reposData.reduce((acc: number, repo: any) => acc + repo.stargazers_count, 0)
-        const totalForks = reposData.reduce((acc: number, repo: any) => acc + repo.forks_count, 0)
-
-        setStats({
-          totalStars,
-          totalForks,
-          totalRepos: userData.public_repos,
-          followers: userData.followers,
-        })
-      } catch (error) {
-        console.error("Error fetching GitHub stats:", error)
-      } finally {
-        setLoading(false)
-      }
-    }
-
-    fetchStats()
-  }, [username])
+  const { stats, loading } = useGitHubStats(username)
 
   if (loading || !stats) return null
 
