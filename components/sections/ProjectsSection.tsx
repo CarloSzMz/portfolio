@@ -9,6 +9,8 @@ import { translations as t } from "@/lib/translations"
 import { useGitHubRepos } from "@/hooks/useGitHubRepos"
 import { formatDate, getLanguageColor } from "@/lib/utils"
 import { GitHubStats } from "@/components/portfolio/github-stats"
+import { FeaturedProjectCard } from "@/components/portfolio/featured-project-card"
+import { featuredProjects } from "@/data"
 
 const fadeInUp = {
   initial: { opacity: 0, y: 20 },
@@ -49,6 +51,20 @@ export function ProjectsSection() {
         <GitHubStats username="CarloSzMz" />
 
         <div className="mt-12">
+          <motion.h3 className="text-2xl font-semibold mb-6" variants={fadeInUp}>
+            Proyectos Destacados
+          </motion.h3>
+
+          {featuredProjects.map((project) => (
+            <FeaturedProjectCard key={project.id} project={project} />
+          ))}
+
+          <motion.h3 className="text-2xl font-semibold mb-6 mt-12" variants={fadeInUp}>
+            Mas Proyectos
+          </motion.h3>
+        </div>
+
+        <div className="mt-6">
           {loading ? (
             <div className="flex justify-center items-center py-20">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
